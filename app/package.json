@@ -1,0 +1,76 @@
+{
+  "name": "youtube-downloader",
+  "productName": "YouTube Downloader",
+  "version": "1.0.0",
+  "description": "Download YouTube videos and playlists as tagged MP3, HEVC MP4 or captions",
+  "main": "out/main.js",
+  "scripts": {
+    "build": "tsc && node scripts/copy-static.js",
+    "typecheck": "tsc --noEmit",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^7.0.2"
+  },
+  "build": {
+    "appId": "com.example.youtubedownloader",
+    "productName": "YouTube Downloader",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "out/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../build/backend",
+        "to": "backend"
+      },
+      {
+        "from": "../build/bin",
+        "to": "bin"
+      }
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.music"
+    },
+    "linux": {
+      "icon": "assets/icons",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "maintainer": "Elmor Cabalfin <codewithelmor@gmail.com>",
+      "synopsis": "YouTube Downloader downloader"
+    }
+  },
+  "author": {
+    "name": "Elmor Cabalfin",
+    "email": "codewithelmor@gmail.com"
+  },
+  "homepage": "https://github.com/example/youtube-downloader"
+}

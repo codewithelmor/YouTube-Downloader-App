@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YouTube Downloader</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>YouTube Downloader</h1>
+      <p class="sub">Paste a video or playlist link to save as MP3, HEVC video or captions. Private videos and playlists cannot be read.</p>
+    </header>
+
+    <section class="row">
+      <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false">
+      <button id="previewBtn" class="primary">Load</button>
+    </section>
+    <p id="message" class="message" hidden></p>
+
+    <section id="listSection" hidden>
+      <div class="list-head">
+        <div>
+          <h2 id="listTitle"></h2>
+          <span id="listCount" class="sub"></span>
+        </div>
+        <label class="check"><input id="selectAll" type="checkbox" checked> Select all</label>
+      </div>
+      <ul id="tracks"></ul>
+
+      <div class="options">
+        <label>Download
+          <select id="mode">
+            <option value="mp3">Audio (MP3)</option>
+            <option value="video">Video (MP4)</option>
+            <option value="captions">Captions only</option>
+          </select>
+        </label>
+        <label id="heightLabel">Resolution
+          <select id="maxHeight"></select>
+        </label>
+        <label id="hevcLabel" class="check"><input id="hevc" type="checkbox"> Re-encode video to HEVC/x265 (smaller, much slower)</label>
+        <label id="bitrateLabel">Audio quality
+          <select id="bitrate">
+            <option value="128">128 kbps</option>
+            <option value="192">192 kbps</option>
+            <option value="256">256 kbps</option>
+            <option value="320">320 kbps</option>
+          </select>
+        </label>
+        <label id="captionsLabel" class="check"><input id="captions" type="checkbox"> English captions (.srt)</label>
+        <label id="enrichLabel" class="check"><input id="enrich" type="checkbox"> Extra metadata for music (slower)</label>
+        <div class="folder">
+          <span id="folder" title=""></span>
+          <button id="folderBtn">Change…</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="downloadBtn" class="primary">Download</button>
+        <button id="cancelBtn" hidden>Cancel</button>
+      </div>
+    </section>
+
+    <section id="progressSection" hidden>
+      <div class="bar"><div id="overallBar"></div></div>
+      <p id="overallText" class="sub"></p>
+      <div class="bar thin"><div id="trackBar"></div></div>
+      <p id="trackText" class="sub"></p>
+      <details>
+        <summary>Log</summary>
+        <pre id="log"></pre>
+      </details>
+      <div id="summary" hidden>
+        <p id="summaryText"></p>
+        <ul id="failed"></ul>
+        <button id="openBtn" class="primary">Open folder</button>
+      </div>
+    </section>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,8 +1,7 @@
 """
-English caption post-processing: de-duplicates YouTube's rolling auto-captions in the .srt
+Caption post-processing: de-duplicates YouTube's rolling auto-captions in the .srt
 and writes a plain-text transcript next to it. Pure file handling: no logging, no printing.
 """
-import glob
 import html
 import os
 import re
@@ -160,28 +159,20 @@ def postprocess_captions(srt_path):
     return notes
 
 
-def finalize_captions(base_path):
+def finalize_captions(base_path, langs):
     """
-    yt-dlp saves captions as '<name>.en.srt' (or '.en-orig.srt', '.en-US.srt', ...).
-    Renames the best English caption to '<name>.srt' so it matches the video's filename,
-    removes other English variants, and post-processes it. base_path is the media path
-    without extension. Returns (caption_path_or_None, [notes]).
+    yt-dlp saves each caption as '<name>.<lang>.srt'. Keeps the files for the requested
+    language codes (named as yt-dlp wrote them) and post-processes each one. base_path is
+    the media path without extension. Returns ([saved_srt_paths], [notes]); a note is added
+    for every requested language that was not available.
     """
-    candidates = sorted(glob.glob(glob.escape(base_path) + '.en*.srt'))
-    if not candidates:
-        return None, ["No English captions were available for this video."]
-
-    # Prefer '.en.srt', then '.en-orig.srt', otherwise take the first variant found
-    chosen = candidates[0]
-    for lang in ('en', 'en-orig', 'en-US', 'en-GB'):
-        if f"{base_path}.{lang}.srt" in candidates:
-            chosen = f"{base_path}.{lang}.srt"
-            break
-
-    target = base_path + '.srt'
-    os.replace(chosen, target)
-    for extra in candidates:
-        if extra != chosen and os.path.exists(extra):
-            os.remove(extra)
-
-    return target, [f"Captions saved: {target}"] + postprocess_captions(target)
+    saved, notes = [], []
+    for lang in langs:
+        path = f"{base_path}.{lang}.srt"
+        if not os.path.exists(path):
+            notes.append(f"No '{lang}' subtitles were available for this video.")
+            continue
+        saved.append(path)
+        notes.append(f"Captions saved: {path}")
+        notes.extend(postprocess_captions(path))
+    return saved, notes

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-YouTube video/playlist link -> tagged MP3 files, HEVC MP4 video, or English captions (`--mode mp3|video|captions`, plus `--captions`; `--hevc` re-encodes video to add captions to the others). No credentials: yt-dlp downloads, FFmpeg converts. There are no tests and no linter configured.
+YouTube video/playlist link -> tagged MP3 files, HEVC MP4 video, or captions in any language the video offers (`--mode mp3|video|captions`, plus repeatable `--sub-lang <code>`; `--captions` = `--sub-lang en`; `--list-subtitles` lists a link's languages, the union for a playlist; `--hevc` re-encodes video to add captions to the others). No credentials: yt-dlp downloads, FFmpeg converts. There are no tests and no linter configured.
 
 Two front ends share one Python core:
 - CLI: `python backend/cli.py` (interactive prompts)
@@ -18,7 +18,7 @@ python backend/cli.py                      # interactive CLI
 
 # JSON-lines backend, as the Electron app drives it
 python -X utf8 -u backend/backend.py --url <youtube-url> --preview
-python -X utf8 -u backend/backend.py --url <url> --out <dir> --bitrate 192 [--mode mp3|video|captions] [--max-height 1080] [--hevc] [--captions] [--enrich] [--video-id <id>]... [--ffmpeg-dir <dir>]
+python -X utf8 -u backend/backend.py --url <url> --out <dir> --bitrate 192 [--mode mp3|video|captions] [--max-height 1080] [--hevc] [--sub-lang <code>]... [--enrich] [--video-id <id>]... [--ffmpeg-dir <dir>]
 
 cd app && npm install && npm start         # dev: compiles TS, launches Electron (needs python + system ffmpeg on PATH)
 cd app && npm run typecheck                # tsc --noEmit; the only static check available
@@ -36,7 +36,7 @@ PyInstaller cannot cross-compile: each OS must build on itself (`.github/workflo
 
 **The core must stay UI-agnostic.** It reports through `log()` and `emit(event, **data)`. With no listener set (`set_listener`), `log` prints and `emit` is a no-op, which is the CLI mode. `backend.py` installs a listener that serializes events as JSON lines. Cancellation is a `threading.Event` passed to `download_youtube` and checked in the yt-dlp progress hook, so it works mid-download. Do not add `print()`/`input()` to `core.py`; prompts belong in `cli.py`.
 
-**Event contract spans three files.** `backend/backend.py` writes the events (`preview` (also carries `heights`), `start`, `track_start`, `progress`, `track_done`, `track_error`, `log`, `done`, `error`), `app/src/types.d.ts` types them (`BackendEvent`, `DoneEvent`), and `app/src/main.ts` and `app/src/renderer/renderer.ts` consume them. Changing an event means updating all of them. `types.d.ts` is deliberately ambient (no imports/exports) so `renderer.ts` compiles to a plain browser script under the CSP in `index.html`; adding an `import`/`export` to the renderer breaks it at runtime (`exports is not defined`).
+**Event contract spans three files.** `backend/backend.py` writes the events (`preview` (also carries `heights` and `subtitles`; a playlist's `subtitles` is empty and comes from `--list-subtitles` as a `subtitles` event), `start`, `track_start`, `progress`, `track_done`, `track_error`, `log`, `done`, `error`), `app/src/types.d.ts` types them (`BackendEvent`, `DoneEvent`), and `app/src/main.ts` and `app/src/renderer/renderer.ts` consume them. Changing an event means updating all of them. `types.d.ts` is deliberately ambient (no imports/exports) so `renderer.ts` compiles to a plain browser script under the CSP in `index.html`; adding an `import`/`export` to the renderer breaks it at runtime (`exports is not defined`).
 
 **Electron process split.** `main.ts` spawns the backend (`python3`/`python backend.py` in dev, `resources/backend/backend[.exe]` when packaged, plus `--ffmpeg-dir resources/bin`), parses stdout lines, and forwards them to the renderer over IPC. `preload.ts` exposes the `Api` interface as `window.api`. Cancel writes `cancel\n` to the backend's stdin, then force-kills after 8s. Compiled output goes to `app/out/` (git-ignored); `npm run build` also copies `index.html` and `style.css` there via `scripts/copy-static.js`.
 

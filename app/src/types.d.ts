@@ -11,6 +11,13 @@ interface TrackPreview {
   cover_url: string | null;
 }
 
+/** One subtitle language a video offers (auto = YouTube's auto-generated captions). */
+interface SubtitleOption {
+  lang: string;
+  name: string;
+  auto: boolean;
+}
+
 interface PreviewData {
   error?: undefined;
   kind: string;
@@ -18,13 +25,16 @@ interface PreviewData {
   tracks: TrackPreview[];
   /** Resolutions a single video offers, highest first; empty for playlists. */
   heights: number[];
+  /** Subtitle languages a single video offers; empty for playlists (see Api.listSubtitles). */
+  subtitles: SubtitleOption[];
 }
 
 type PreviewResult = PreviewData | { error: string };
 
 /** Events the Python backend writes as JSON lines (see backend/backend.py). */
 type BackendEvent =
-  | { event: 'preview'; kind: string; name: string; tracks: TrackPreview[]; heights: number[] }
+  | { event: 'preview'; kind: string; name: string; tracks: TrackPreview[]; heights: number[]; subtitles: SubtitleOption[] }
+  | { event: 'subtitles'; subtitles: SubtitleOption[] }
   | { event: 'error'; message: string }
   | { event: 'log'; message: string }
   | { event: 'start'; kind: string; name: string; total: number; folder: string }
@@ -54,7 +64,8 @@ interface Settings {
   hevc: boolean;
   /** Video resolution cap in pixels of height; '' means best available. */
   maxHeight: string;
-  captions: boolean;
+  /** Subtitle language codes to save. */
+  subLangs: string[];
 }
 
 interface DownloadOptions {
@@ -65,7 +76,7 @@ interface DownloadOptions {
   mode: DownloadMode;
   hevc: boolean;
   maxHeight: string;
-  captions: boolean;
+  subLangs: string[];
   trackIds: string[];
 }
 
@@ -76,6 +87,8 @@ interface Api {
   pickFolder(current: string): Promise<string | null>;
   openFolder(folder: string): Promise<string>;
   preview(url: string): Promise<PreviewResult>;
+  /** Union of the subtitle languages across a playlist (slow: reads every video). */
+  listSubtitles(url: string): Promise<SubtitleOption[] | { error: string }>;
   startDownload(opts: DownloadOptions): Promise<{ started: true } | { error: string }>;
   cancelDownload(): Promise<void>;
   onEvent(handler: (ev: BackendEvent) => void): () => void;

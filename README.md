@@ -4,7 +4,7 @@ Turn a **YouTube video or playlist link** into any of:
 
 - **Audio**: tagged **MP3** files with embedded cover art.
 - **Video**: **MP4** at the resolution you choose (up to 8K, if the video has it). Audio is always MP3 at the bitrate you choose; the video stream is copied by default (fast), or optionally re-encoded to **x265 (HEVC)** for smaller files (much slower).
-- **Captions**: English `.srt` subtitles plus a plain-text `.txt` transcript, on their own or alongside audio/video.
+- **Captions**: `.srt` subtitles in any language the video offers (you pick one or several), plus a plain-text `.txt` transcript for each, on their own or alongside audio/video.
 
 No account or API key required. Use it from the command line or the Electron desktop app.
 
@@ -13,7 +13,7 @@ No account or API key required. Use it from the command line or the Electron des
 1. `yt-dlp` reads the link (a single video or a whole playlist; playlists get their own subfolder).
 2. **Audio**: it downloads the best audio and FFmpeg converts it to MP3. Tags come from YouTube: title, artist (from the music fields, an "Artist - Title" video title, or the channel name, with "- Topic" and VEVO stripped), album when present, upload date, and the thumbnail as cover art. Optional **extra metadata** fills gaps from Deezer, iTunes, MusicBrainz and LRCLIB (genre, BPM, label, ISRC, lyrics, 1400px cover); it is off by default because it matches by artist and title, which can mismatch non-music videos.
 3. **Video**: it downloads the best video and audio streams at or below your resolution cap (preferring H.264/AAC, which plays everywhere) and FFmpeg writes them to an MP4 with MP3 audio at your chosen bitrate, copying the video stream unchanged, so it is fast. With **HEVC** on (`--hevc`, or the checkbox in the app) the video is re-encoded to x265 (`hvc1`-tagged so it plays on Apple devices). The temporary source is deleted. Files are named `<artist> - <title>.mp4`.
-4. **Captions**: manual English captions are used when available, otherwise auto-generated ones. The `.srt` has exactly the video's file name so players pick it up. Auto-generated captions have YouTube's repeated rolling lines removed. Set `WRITE_TRANSCRIPT_TXT = False` in `backend/captions.py` to skip the `.txt` transcript.
+4. **Captions**: you choose from the languages the video actually offers (uploader-provided, plus YouTube's auto-generated captions, marked auto; machine translations are not listed). For a playlist the list is the union over all its videos, and each video saves the chosen languages it has. Files are named `<video name>.<lang>.srt` (and `.txt`), the form players pick up. Auto-generated captions have YouTube's repeated rolling lines removed. Set `WRITE_TRANSCRIPT_TXT = False` in `backend/captions.py` to skip the `.txt` transcript.
 
 For a single video the resolution list shows what that video actually offers. For a playlist you pick a cap (8K ... 360p) and each video downloads at that height or the best one below it.
 
@@ -40,7 +40,7 @@ pip install -r backend/requirements.txt
 python backend/cli.py
 ```
 
-You are asked for the YouTube link, what to download (audio, video or captions only), a target folder, then the options that apply: video resolution, MP3 bitrate, whether to also save captions, and (audio) whether to fetch extra metadata.
+You are asked for the YouTube link, what to download (audio, video or captions only), a target folder, then the options that apply: video resolution, MP3 bitrate, which subtitle languages to also save, and (audio) whether to fetch extra metadata.
 
 ### Desktop app
 
@@ -59,7 +59,7 @@ This is how the Electron app drives Python. Always run it with `-X utf8 -u`.
 
 ```bash
 python -X utf8 -u backend/backend.py --url <youtube-url> --preview
-python -X utf8 -u backend/backend.py --url <youtube-url> --out ./music --bitrate 192 [--mode mp3|video|captions] [--max-height 1080] [--hevc] [--captions] [--enrich] [--video-id <id>]... [--ffmpeg-dir <dir>]
+python -X utf8 -u backend/backend.py --url <youtube-url> --out ./music --bitrate 192 [--mode mp3|video|captions] [--max-height 1080] [--hevc] [--sub-lang <code>]... [--enrich] [--video-id <id>]... [--ffmpeg-dir <dir>]
 ```
 
 Supported links: `youtube.com/watch?v=...`, `youtu.be/...`, `music.youtube.com/...`, and `youtube.com/playlist?list=...`. Private videos and private playlists cannot be read.

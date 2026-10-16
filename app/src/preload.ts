@@ -6,6 +6,7 @@ const api: Api = {
   pickFolder: (current) => ipcRenderer.invoke('folder:pick', current),
   openFolder: (folder) => ipcRenderer.invoke('folder:open', folder),
   preview: (url) => ipcRenderer.invoke('preview', url),
+  listSubtitles: (url) => ipcRenderer.invoke('subtitles:list', url),
   startDownload: (opts) => ipcRenderer.invoke('download:start', opts),
   cancelDownload: () => ipcRenderer.invoke('download:cancel'),
   onEvent: (handler) => {

@@ -28,12 +28,18 @@ function selectedIds(): string[] {
   return trackBoxes().filter((b) => b.checked).map((b) => b.dataset.id!);
 }
 
+function subBoxes(): HTMLInputElement[] {
+  return [...document.querySelectorAll<HTMLInputElement>('#subsList input')];
+}
+
 function setRunning(value: boolean): void {
   running = value;
-  for (const id of ['url', 'previewBtn', 'selectAll', 'mode', 'hevc', 'maxHeight', 'bitrate', 'captions', 'enrich', 'folderBtn']) {
+  for (const id of ['url', 'previewBtn', 'selectAll', 'mode', 'hevc', 'maxHeight', 'bitrate', 'enrich', 'folderBtn']) {
     el<HTMLInputElement>(id).disabled = value;
   }
-  for (const box of trackBoxes()) box.disabled = value;
+  for (const box of [...trackBoxes(), ...subBoxes()]) box.disabled = value;
+  el('subsBox').classList.toggle('disabled', value);
+  if (value) el<HTMLDetailsElement>('subsBox').open = false;
   el('downloadBtn').hidden = value;
   el('cancelBtn').hidden = !value;
   el<HTMLButtonElement>('cancelBtn').disabled = false;
@@ -54,13 +60,54 @@ function fillHeights(heights: number[]): void {
   select.value = [...select.options].some((o) => o.value === previous) ? previous : '';
 }
 
+/** Language codes the user wants; survives reloads so a choice is kept across links. */
+let wantedLangs = new Set<string>();
+
+/** Renders the subtitle checkboxes for what the loaded link offers. */
+function fillSubtitles(options: SubtitleOption[], emptyText: string): void {
+  const list = el('subsList');
+  list.replaceChildren();
+  for (const s of options) {
+    const label = document.createElement('label');
+    label.className = 'check';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.value = s.lang;
+    box.checked = wantedLangs.has(s.lang);
+    box.disabled = running;
+    box.addEventListener('change', () => {
+      if (box.checked) wantedLangs.add(s.lang);
+      else wantedLangs.delete(s.lang);
+      updateSubsSummary();
+    });
+    label.append(box, `${s.name} (${s.lang})${s.auto ? ' · auto-generated' : ''}`);
+    list.append(label);
+  }
+  // Subtitles-only mode needs a language: offer English when nothing chosen applies
+  const mode = el<HTMLSelectElement>('mode').value;
+  const en = subBoxes().find((b) => b.value === 'en');
+  if (mode === 'captions' && en && !subBoxes().some((b) => b.checked)) {
+    en.checked = true;
+    wantedLangs.add('en');
+  }
+  el('subsEmpty').textContent = emptyText;
+  el('subsEmpty').hidden = !emptyText;
+  updateSubsSummary();
+}
+
+/** The dropdown's closed label: the chosen languages, or a count when there are many. */
+function updateSubsSummary(): void {
+  const chosen = subBoxes().filter((b) => b.checked).map((b) => b.value);
+  el('subsSummary').textContent = !chosen.length ? 'None'
+    : chosen.length <= 3 ? chosen.join(', ') : `${chosen.length} languages`;
+}
+
 /** Shows only the options that apply to the chosen download mode. */
 function applyMode(): void {
   const mode = el<HTMLSelectElement>('mode').value as DownloadMode;
   el('heightLabel').hidden = mode !== 'video';
   el('hevcLabel').hidden = mode !== 'video';
   el('bitrateLabel').hidden = mode === 'captions';
-  el('captionsLabel').hidden = mode === 'captions';
   el('enrichLabel').hidden = mode !== 'mp3';
   el('bitrateLabel').firstChild!.textContent = mode === 'video' ? 'Audio quality (MP3) ' : 'Audio quality ';
 }
@@ -115,6 +162,8 @@ function renderTracks(data: PreviewData): void {
   updateCount();
 }
 
+let subsToken = 0; // identifies the latest Load, so a slow playlist scan can't overwrite a newer one
+
 async function loadPreview(): Promise<void> {
   const url = el<HTMLInputElement>('url').value.trim();
   if (!url) return showMessage('Paste a YouTube link first.');
@@ -132,6 +181,17 @@ async function loadPreview(): Promise<void> {
   preview = result;
   fillHeights(result.heights);
   renderTracks(result);
+  const token = ++subsToken;
+  if (result.kind !== 'playlist') {
+    fillSubtitles(result.subtitles, result.subtitles.length ? '' : 'This video has no subtitles.');
+    return;
+  }
+  // A playlist's languages need every video's info: scan in the background
+  fillSubtitles([], 'Checking which languages the videos offer…');
+  const subs = await window.api.listSubtitles(url);
+  if (token !== subsToken) return; // a newer Load replaced this one
+  if ('error' in subs) fillSubtitles([], subs.error);
+  else fillSubtitles(subs, subs.length ? '' : 'These videos have no subtitles.');
 }
 
 async function startDownload(): Promise<void> {
@@ -141,9 +201,11 @@ async function startDownload(): Promise<void> {
   const enrich = el<HTMLInputElement>('enrich').checked;
   const mode = el<HTMLSelectElement>('mode').value as DownloadMode;
   const maxHeight = el<HTMLSelectElement>('maxHeight').value;
-  const captions = el<HTMLInputElement>('captions').checked;
   const hevc = el<HTMLInputElement>('hevc').checked;
-  await window.api.saveSettings({ folder, bitrate, enrich, mode, hevc, maxHeight, captions });
+  const subLangs = subBoxes().filter((b) => b.checked).map((b) => b.value);
+  if (mode === 'captions' && !subLangs.length) return showMessage('Choose at least one subtitle language.');
+  // wantedLangs also keeps earlier picks this link doesn't offer
+  await window.api.saveSettings({ folder, bitrate, enrich, mode, hevc, maxHeight, subLangs: [...wantedLangs] });
 
   // Rows for the selected tracks, in download order (the backend keeps playlist order).
   const all = [...document.querySelectorAll<HTMLLIElement>('#tracks li')];
@@ -164,7 +226,7 @@ async function startDownload(): Promise<void> {
   setRunning(true);
 
   const r = await window.api.startDownload({
-    url: el<HTMLInputElement>('url').value.trim(), folder, bitrate, enrich, mode, hevc, maxHeight, captions, trackIds: ids,
+    url: el<HTMLInputElement>('url').value.trim(), folder, bitrate, enrich, mode, hevc, maxHeight, subLangs, trackIds: ids,
   });
   if ('error' in r) {
     setRunning(false);
@@ -255,12 +317,21 @@ async function init(): Promise<void> {
   el<HTMLSelectElement>('bitrate').value = s.bitrate;
   el<HTMLInputElement>('enrich').checked = s.enrich;
   el<HTMLSelectElement>('mode').value = s.mode;
-  el<HTMLInputElement>('captions').checked = s.captions;
+  wantedLangs = new Set(s.subLangs);
   el<HTMLInputElement>('hevc').checked = s.hevc;
   fillHeights([]);
+  fillSubtitles([], 'Load a link to see its subtitles.');
   el<HTMLSelectElement>('maxHeight').value = s.maxHeight;
   applyMode();
   el('mode').addEventListener('change', applyMode);
+  // Close the subtitle dropdown on an outside click or Escape
+  document.addEventListener('click', (e) => {
+    const box = el<HTMLDetailsElement>('subsBox');
+    if (box.open && !box.contains(e.target as Node)) box.open = false;
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Escape') el<HTMLDetailsElement>('subsBox').open = false;
+  });
 
   el('previewBtn').addEventListener('click', loadPreview);
   el('url').addEventListener('keydown', (e) => {

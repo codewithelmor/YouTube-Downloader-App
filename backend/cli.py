@@ -68,11 +68,11 @@ def get_yes_no(prompt, default=True):
 
 
 def get_download_mode():
-    """Asks whether to download MP3 audio, HEVC video, or just the English captions."""
+    """Asks whether to download MP3 audio, HEVC video, or just the subtitles."""
     print("\nWhat would you like to download?")
     print("1. Audio (tagged MP3 with cover art)")
     print("2. Video (MP4)")
-    print("3. Captions only (English .srt + .txt transcript)")
+    print("3. Subtitles only (.srt + .txt transcript)")
 
     modes = {'1': core.MODE_MP3, '2': core.MODE_VIDEO, '3': core.MODE_CAPTIONS}
     while True:
@@ -105,6 +105,32 @@ def get_valid_resolution(heights):
         print(f"❌ Invalid input. Please enter a number between 1 and {len(options)}.")
 
 
+def get_subtitle_langs(subtitles, required):
+    """
+    Asks which subtitle languages to save. Returns a list of language codes (empty = none).
+    subtitles: what the link offers; required: at least one must be chosen (subtitles-only mode).
+    """
+    if not subtitles:
+        print("\nNo subtitles are available for this link.")
+        return []
+
+    print("\nAvailable subtitles:")
+    for i, s in enumerate(subtitles, start=1):
+        print(f"{i}. {s['name']} ({s['lang']}){' - auto-generated' if s['auto'] else ''}")
+    hint = "numbers separated by commas, or 'all'" + ("" if required else ", or Enter for none")
+
+    while True:
+        answer = input(f"Choose subtitles ({hint}): ").strip().lower()
+        if not answer and not required:
+            return []
+        if answer == 'all':
+            return [s['lang'] for s in subtitles]
+        parts = [p.strip() for p in answer.split(',') if p.strip()]
+        if parts and all(p.isdigit() and 1 <= int(p) <= len(subtitles) for p in parts):
+            return list(dict.fromkeys(subtitles[int(p) - 1]['lang'] for p in parts))
+        print(f"❌ Invalid input. Enter numbers between 1 and {len(subtitles)}, separated by commas.")
+
+
 if __name__ == "__main__":
     url = input("Enter YouTube Video or Playlist URL: ").strip()
     if not url:
@@ -115,13 +141,17 @@ if __name__ == "__main__":
 
     try:
         print("\n🔎 Reading the link...")
-        heights = core.preview_youtube(url)['heights'] if mode == core.MODE_VIDEO else []
+        preview = core.preview_youtube(url)
+        heights, subtitles = preview['heights'], preview['subtitles']
+        if preview['kind'] == 'playlist':
+            print("🔎 Checking the subtitle languages of every video (this can take a while)...")
+            subtitles = core.fetch_playlist_subtitles(url)
     except (ValueError, RuntimeError) as e:
         print(f"❌ {e}")
         raise SystemExit(1)
 
     output_folder = get_valid_directory()
-    max_height, kbps, extra_metadata, captions, hevc = None, '192', False, False, False
+    max_height, kbps, extra_metadata, sub_langs, hevc = None, '192', False, [], False
 
     if mode == core.MODE_VIDEO:
         max_height = get_valid_resolution(heights)
@@ -129,12 +159,13 @@ if __name__ == "__main__":
             "\nRe-encode the video to HEVC/x265? Smaller files, but much slower", default=False)
     if mode != core.MODE_CAPTIONS:
         kbps = get_valid_bitrate()
-    if mode != core.MODE_CAPTIONS:
-        captions = get_yes_no("\nAlso save English captions (.srt + .txt transcript)?", default=False)
+    sub_langs = get_subtitle_langs(subtitles, required=mode == core.MODE_CAPTIONS)
+    if mode == core.MODE_CAPTIONS and not sub_langs:
+        raise SystemExit(1)
     if mode == core.MODE_MP3:
         extra_metadata = get_yes_no(
             "\nFetch extra metadata (genre, BPM, label, ISRC, lyrics, ...)? Only suits music; "
             "may mismatch other videos. Slower", default=False)
 
     core.download_youtube(url, kbps, output_folder, enrich=extra_metadata,
-                          mode=mode, max_height=max_height, captions=captions, hevc=hevc)
+                          mode=mode, max_height=max_height, sub_langs=sub_langs, hevc=hevc)

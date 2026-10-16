@@ -76,16 +76,21 @@ function loadSettings(): Partial<Settings> {
 
 // ---- IPC ---------------------------------------------------------------------
 
-ipcMain.handle('settings:get', (): Settings => ({
-  folder: app.getPath('music'),
-  bitrate: '192',
-  enrich: false,
-  mode: 'mp3',
-  hevc: false,
-  maxHeight: '',
-  captions: false,
-  ...loadSettings(),
-}));
+ipcMain.handle('settings:get', (): Settings => {
+  const saved: Partial<Settings> & { captions?: boolean } = loadSettings();
+  // Older versions stored a single "English captions" checkbox
+  const subLangs = saved.subLangs ?? (saved.captions ? ['en'] : []);
+  return {
+    folder: app.getPath('music'),
+    bitrate: '192',
+    enrich: false,
+    mode: 'mp3',
+    hevc: false,
+    maxHeight: '',
+    ...saved,
+    subLangs,
+  };
+});
 
 ipcMain.handle('settings:set', (_e, settings: Settings): void => {
   fs.writeFileSync(settingsFile(), JSON.stringify(settings));
@@ -110,7 +115,30 @@ ipcMain.handle('preview', (_e, url: string) => new Promise<PreviewResult>((resol
   proc.on('error', (err) => resolve({ error: `Could not start the backend: ${err.message}` }));
   proc.on('close', () => {
     if (last.event === 'preview') {
-      resolve({ kind: last.kind, name: last.name, tracks: last.tracks, heights: last.heights });
+      resolve({
+        kind: last.kind, name: last.name, tracks: last.tracks, heights: last.heights, subtitles: last.subtitles,
+      });
+    } else {
+      resolve({ error: (last.event === 'error' && last.message) || stderr.trim() || 'Unknown error' });
+    }
+  });
+}));
+
+let subtitleJob: ChildProcessWithoutNullStreams | null = null; // playlist language scan, if running
+
+ipcMain.handle('subtitles:list', (_e, url: string) => new Promise<SubtitleOption[] | { error: string }>((resolve) => {
+  subtitleJob?.kill(); // a newer Load supersedes the scan still running
+  const proc = run(['--url', url, '--list-subtitles']);
+  subtitleJob = proc;
+  let last: BackendEvent = { event: 'error', message: 'The backend did not respond.' };
+  let stderr = '';
+  readEvents(proc, (ev) => { last = ev; });
+  proc.stderr.on('data', (d) => { stderr += d; });
+  proc.on('error', (err) => resolve({ error: `Could not start the backend: ${err.message}` }));
+  proc.on('close', () => {
+    if (subtitleJob === proc) subtitleJob = null;
+    if (last.event === 'subtitles') {
+      resolve(last.subtitles);
     } else {
       resolve({ error: (last.event === 'error' && last.message) || stderr.trim() || 'Unknown error' });
     }
@@ -123,7 +151,7 @@ ipcMain.handle('download:start', (_e, opts: DownloadOptions): { started: true } 
   args.push('--mode', opts.mode);
   if (opts.mode === 'video' && opts.maxHeight) args.push('--max-height', opts.maxHeight);
   if (opts.mode === 'video' && opts.hevc) args.push('--hevc');
-  if (opts.captions) args.push('--captions');
+  for (const lang of opts.subLangs) args.push('--sub-lang', lang);
   if (opts.mode === 'mp3' && opts.enrich) args.push('--enrich');
   for (const id of opts.trackIds) args.push('--video-id', id);
 

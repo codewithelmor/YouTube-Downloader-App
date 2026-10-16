@@ -193,9 +193,10 @@ def track_from_info(info, **extra):
 def fetch_youtube_tracks(url):
     """
     Lists the videos behind a YouTube link without downloading.
-    Returns (kind, collection_name_or_None, [track dicts], [heights]) with kind 'video' or 'playlist'.
-    Playlist entries come from the flat listing, so they are thin; download_track refines
-    each track from the full video info.
+    Returns (kind, collection_name_or_None, [track dicts], [heights], [subtitles]) with kind
+    'video' or 'playlist'. Playlist entries come from the flat listing, so they are thin
+    (no heights or subtitles; see fetch_playlist_subtitles); download_track refines each
+    track from the full video info.
     """
     opts = {'quiet': True, 'no_warnings': True, 'extract_flat': 'in_playlist',
             'ignoreerrors': True}
@@ -205,14 +206,39 @@ def fetch_youtube_tracks(url):
         raise RuntimeError("YouTube returned nothing for that link.")
 
     if info.get('_type') != 'playlist':
-        return 'video', None, [track_from_info(info)], available_heights(info)
+        return 'video', None, [track_from_info(info)], available_heights(info), available_subtitles(info)
 
     tracks = []
     for entry in info.get('entries') or []:
         if not entry or not entry.get('id'):
             continue   # deleted / private videos come back empty
         tracks.append(track_from_info(entry))
-    return 'playlist', info.get('title') or "Untitled", tracks, []
+    return 'playlist', info.get('title') or "Untitled", tracks, [], []
+
+def fetch_playlist_subtitles(url, cancel=None, progress=None):
+    """
+    Subtitle languages offered by any video of a playlist (union). Needs the full info of every
+    video, so it is slow; the flat listing from fetch_youtube_tracks has no subtitle data.
+    progress(done, total) is called after each video; cancel is an optional threading.Event.
+    """
+    kind, _, tracks, _, subtitles = fetch_youtube_tracks(url)
+    if kind == 'video':
+        return subtitles
+    opts = {'quiet': True, 'no_warnings': True, 'ignoreerrors': True}
+    merged = []
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        for done, track in enumerate(tracks, start=1):
+            if cancel is not None and cancel.is_set():
+                break
+            try:
+                info = ydl.extract_info(track['video_url'], download=False)
+            except Exception:
+                info = None   # one unreadable video should not hide the other languages
+            if info:
+                merged = merge_subtitles(merged, available_subtitles(info))
+            if progress:
+                progress(done, len(tracks))
+    return merged
 
 
 # ------------------------------ Track objects -------------------------------
@@ -722,7 +748,8 @@ def write_id3_tags(mp3_path, track, cover_bytes):
 
 MODE_MP3 = 'mp3'             # audio only, tagged MP3 with cover art
 MODE_VIDEO = 'video'         # MP4 video; optionally re-encoded to HEVC (x265) with MP3 audio
-MODE_CAPTIONS = 'captions'   # English .srt (+ .txt transcript) only
+MODE_CAPTIONS = 'captions'   # chosen-language .srt (+ .txt transcript) files only
+DEFAULT_SUB_LANGS = ['en']   # captions-only mode with no language chosen
 MODES = (MODE_MP3, MODE_VIDEO, MODE_CAPTIONS)
 
 HEVC_CRF = "23"          # x265 quality: lower = better quality / bigger file (18-28 is sane)
@@ -751,6 +778,37 @@ def available_heights(info):
                if f.get('height') and f.get('vcodec') not in (None, 'none')}
     return sorted(heights, reverse=True)
 
+def available_subtitles(info):
+    """
+    Subtitle languages one video offers: [{'lang', 'name', 'auto'}], manual first. Auto-generated
+    captions are included, but not YouTube's machine translations of them (those carry
+    'tlang=' in their URLs) or live chat. A language that has both is listed once, as manual.
+    """
+    found = {}
+    for lang, formats in (info.get('subtitles') or {}).items():
+        if lang != 'live_chat':
+            found[lang] = {'lang': lang, 'name': _subtitle_name(lang, formats), 'auto': False}
+    for lang, formats in (info.get('automatic_captions') or {}).items():
+        original = any('tlang=' not in (f.get('url') or '') for f in formats or [])
+        if original and lang not in found:
+            found[lang] = {'lang': lang, 'name': _subtitle_name(lang, formats), 'auto': True}
+    return sorted(found.values(), key=lambda s: (s['auto'], s['name'].lower()))
+
+def _subtitle_name(lang, formats):
+    for f in formats or []:
+        if f.get('name'):
+            return f['name']
+    return lang
+
+def merge_subtitles(*lists):
+    """Union of several available_subtitles() lists; a manual entry beats an auto one."""
+    merged = {}
+    for options in lists:
+        for s in options:
+            if s['lang'] not in merged or (merged[s['lang']]['auto'] and not s['auto']):
+                merged[s['lang']] = s
+    return sorted(merged.values(), key=lambda s: (s['auto'], s['name'].lower()))
+
 def build_format_selector(max_height, prefer_mp4=False):
     """
     yt-dlp format string capped at the chosen resolution (None = best available).
@@ -765,9 +823,9 @@ def build_format_selector(max_height, prefer_mp4=False):
     return selector
 
 def build_ydl_opts(bitrate, output_dir, ffmpeg_dir=None, mode=MODE_MP3, max_height=None,
-                   captions=False, hevc=False):
+                   sub_langs=(), hevc=False):
     """
-    Builds the yt-dlp options dict.
+    Builds the yt-dlp options dict. sub_langs: subtitle language codes to save (exact yt-dlp codes).
     mp3:      best audio -> MP3 via FFmpegExtractAudio.
     video:    best video+audio merged into a temporary MKV (holds any codec combo YouTube
               serves); encode_mp4() then writes the MP4 with MP3 audio at the chosen bitrate.
@@ -794,11 +852,11 @@ def build_ydl_opts(bitrate, output_dir, ffmpeg_dir=None, mode=MODE_MP3, max_heig
         opts['postprocessors'].append(
             {'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': bitrate})
 
-    if mode == MODE_CAPTIONS or captions:
+    if sub_langs:
         opts.update({
             'writesubtitles': True,        # manual captions, when the uploader provided them
             'writeautomaticsub': True,     # fall back to auto-generated captions
-            'subtitleslangs': ['en', 'en-orig', 'en-US', 'en-GB'],   # not 'en.*': that also matches auto-translations
+            'subtitleslangs': list(sub_langs),   # exact codes: a pattern like 'en.*' would also match auto-translations
         })
         opts['postprocessors'].append(
             {'key': 'FFmpegSubtitlesConvertor', 'format': 'srt', 'when': 'before_dl'})
@@ -910,12 +968,13 @@ def locate_downloaded_file(ydl, info):
             return base + ext
     return None
 
-def download_track(ydl, track, enrich=True, mode=MODE_MP3, captions=False,
+def download_track(ydl, track, enrich=True, mode=MODE_MP3, sub_langs=(),
                    bitrate='192', ffmpeg_dir=None, hevc=False):
     """
     Downloads one video in the chosen mode. mp3: MP3 plus (optional) enrichment, ID3 tags and
-    cover. video: MP4 with MP3 audio (video stream re-encoded to HEVC only when hevc=True). captions: just the English .srt/.txt. captions=True adds the
-    captions next to an mp3/video download.
+    cover. video: MP4 with MP3 audio (video stream re-encoded to HEVC only when hevc=True).
+    captions: just the .srt/.txt files. sub_langs: subtitle languages saved next to the media
+    (or alone in captions mode).
     """
     _check_cancel()
     info = ydl.extract_info(track['video_url'], download=False)
@@ -938,16 +997,16 @@ def download_track(ydl, track, enrich=True, mode=MODE_MP3, captions=False,
     ydl.process_info(info)
     base = os.path.splitext(ydl.prepare_filename(info))[0]
 
-    if mode == MODE_CAPTIONS or captions:
+    if sub_langs:
         try:
-            caption_path, notes = finalize_captions(base)
+            caption_paths, notes = finalize_captions(base, sub_langs)
         except Exception as e:
-            caption_path, notes = None, [f"Could not finalize captions: {e}"]
+            caption_paths, notes = [], [f"Could not finalize captions: {e}"]
         for note in notes:
             log(f"   💬 {note}")
         if mode == MODE_CAPTIONS:
-            if not caption_path:
-                raise RuntimeError("no English captions available")
+            if not caption_paths:
+                raise RuntimeError("none of the selected subtitle languages are available")
             return
 
     if mode == MODE_VIDEO:
@@ -972,28 +1031,31 @@ def download_track(ydl, track, enrich=True, mode=MODE_MP3, captions=False,
 def preview_youtube(url):
     """
     Reads a YouTube link without downloading. Returns {'kind', 'name', 'tracks': [...],
-    'heights': [...]} (heights: resolutions a single video offers, highest first; empty for
-    playlists). Raises ValueError for a bad link and RuntimeError when YouTube can't be read.
+    'heights': [...], 'subtitles': [...]} (heights and subtitles: what a single video offers;
+    both empty for playlists, see fetch_playlist_subtitles). Raises ValueError for a bad link
+    and RuntimeError when YouTube can't be read.
     """
     if not is_youtube_url(url):
         raise ValueError("That doesn't look like a YouTube video or playlist link.")
     try:
-        kind, name, tracks, heights = fetch_youtube_tracks(url)
+        kind, name, tracks, heights, subtitles = fetch_youtube_tracks(url)
     except Exception as e:
         raise RuntimeError(f"Could not read that YouTube link: {e} "
                            "(Check the link and your connection. Private videos and playlists "
                            "can't be read.)") from e
-    return {'kind': kind, 'name': name, 'tracks': tracks, 'heights': heights}
+    return {'kind': kind, 'name': name, 'tracks': tracks, 'heights': heights,
+            'subtitles': subtitles}
 
 def download_youtube(url, bitrate, output_dir, enrich=False, ffmpeg_dir=None,
                      cancel=None, video_ids=None, mode=MODE_MP3, max_height=None,
-                     captions=False, hevc=False):
+                     sub_langs=(), hevc=False):
     """
     Handles YouTube video and playlist links.
     bitrate: MP3 kbps (also the audio of a video download).
     hevc: re-encode the video stream to HEVC/x265 (much slower; default copies it).
     mode: MODE_MP3, MODE_VIDEO or MODE_CAPTIONS. max_height: resolution cap for video
-          (None = best available). captions: also save English captions with mp3/video.
+          (None = best available). sub_langs: subtitle language codes to save (with mp3/video,
+          or alone in captions mode, where none given means English).
     cancel: optional threading.Event; set it to stop after/within the current video.
     video_ids: optional collection of video ids; only those videos are downloaded.
     Returns {'ok': [label, ...], 'failed': [{'track': label, 'error': msg}], 'folder': path,
@@ -1002,7 +1064,8 @@ def download_youtube(url, bitrate, output_dir, enrich=False, ffmpeg_dir=None,
     global _cancel_event, _mode
     _cancel_event = cancel
     _mode = mode
-    summary = {'ok': [], 'failed': [], 'folder': output_dir, 'cancelled': False, 'error': None}
+    sub_langs = list(sub_langs) or (DEFAULT_SUB_LANGS if mode == MODE_CAPTIONS else [])
+    summary ={'ok': [], 'failed': [], 'folder': output_dir, 'cancelled': False, 'error': None}
 
     problem = check_ffmpeg(mode, ffmpeg_dir, hevc)
     if problem:
@@ -1037,7 +1100,7 @@ def download_youtube(url, bitrate, output_dir, enrich=False, ffmpeg_dir=None,
     summary['folder'] = target_dir
     emit('start', kind=kind, name=name, total=total, folder=target_dir)
 
-    ydl_opts = build_ydl_opts(bitrate, target_dir, ffmpeg_dir, mode, max_height, captions, hevc)
+    ydl_opts = build_ydl_opts(bitrate, target_dir, ffmpeg_dir, mode, max_height, sub_langs, hevc)
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         for index, track in enumerate(tracks, start=1):
@@ -1048,7 +1111,7 @@ def download_youtube(url, bitrate, output_dir, enrich=False, ffmpeg_dir=None,
             log(f"\n[{index}/{total}] Processing: {label}")
             emit('track_start', index=index, total=total, label=label)
             try:
-                download_track(ydl, track, enrich=enrich, mode=mode, captions=captions,
+                download_track(ydl, track, enrich=enrich, mode=mode, sub_langs=sub_langs,
                                bitrate=bitrate, ffmpeg_dir=ffmpeg_dir, hevc=hevc)
                 summary['ok'].append(label)
                 emit('track_done', index=index, label=label)

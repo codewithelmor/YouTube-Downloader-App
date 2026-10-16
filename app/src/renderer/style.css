@@ -50,6 +50,19 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 #tracks li.error .state { color: var(--danger); }
 
 .options { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 16px; }
+.subs-field { display: inline-flex; align-items: center; gap: 8px; }
+.dropdown { position: relative; margin: 0; }
+.dropdown > summary { list-style: none; color: var(--text); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px; min-width: 200px; max-width: 280px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dropdown > summary::-webkit-details-marker { display: none; }
+.dropdown > summary::after { content: "▾"; float: right; margin-left: 10px; color: var(--muted); }
+.dropdown[open] > summary { border-color: var(--muted); }
+.dropdown.disabled > summary { opacity: 0.5; pointer-events: none; }
+.dropdown-panel { position: absolute; z-index: 10; left: 0; bottom: calc(100% + 4px); min-width: 280px; max-width: 420px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+#subsList { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
 .folder { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px; justify-content: flex-end; }
 .folder span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; max-width: 320px; }
 .actions { display: flex; gap: 10px; margin-top: 18px; }

@@ -51,7 +51,16 @@
             <option value="320">320 kbps</option>
           </select>
         </label>
-        <label id="captionsLabel" class="check"><input id="captions" type="checkbox"> English captions (.srt)</label>
+        <div class="subs-field">
+          <span id="subsCaption">Subtitles (.srt + .txt)</span>
+          <details id="subsBox" class="dropdown">
+            <summary id="subsSummary">None</summary>
+            <div class="dropdown-panel">
+              <div id="subsEmpty" class="sub">Load a link to see its subtitles.</div>
+              <div id="subsList"></div>
+            </div>
+          </details>
+        </div>
         <label id="enrichLabel" class="check"><input id="enrich" type="checkbox"> Extra metadata for music (slower)</label>
         <div class="folder">
           <span id="folder" title=""></span>

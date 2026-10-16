@@ -5,7 +5,8 @@ function el<T extends HTMLElement = HTMLElement>(id: string): T {
 }
 
 let preview: PreviewData | null = null;
-let folder = '';
+let folders = {} as Record<DownloadMode, string>;
+const currentMode = () => el<HTMLSelectElement>('mode').value as DownloadMode;
 let running = false;
 let rows: HTMLLIElement[] = []; // <li> elements for the tracks being downloaded, in order
 let lastFolder = '';
@@ -205,7 +206,7 @@ async function startDownload(): Promise<void> {
   const subLangs = subBoxes().filter((b) => b.checked).map((b) => b.value);
   if (mode === 'captions' && !subLangs.length) return showMessage('Choose at least one subtitle language.');
   // wantedLangs also keeps earlier picks this link doesn't offer
-  await window.api.saveSettings({ folder, bitrate, enrich, mode, hevc, maxHeight, subLangs: [...wantedLangs] });
+  await window.api.saveSettings({ folders, bitrate, enrich, mode, hevc, maxHeight, subLangs: [...wantedLangs] });
 
   // Rows for the selected tracks, in download order (the backend keeps playlist order).
   const all = [...document.querySelectorAll<HTMLLIElement>('#tracks li')];
@@ -226,7 +227,7 @@ async function startDownload(): Promise<void> {
   setRunning(true);
 
   const r = await window.api.startDownload({
-    url: el<HTMLInputElement>('url').value.trim(), folder, bitrate, enrich, mode, hevc, maxHeight, subLangs, trackIds: ids,
+    url: el<HTMLInputElement>('url').value.trim(), folder: folders[mode], bitrate, enrich, mode, hevc, maxHeight, subLangs, trackIds: ids,
   });
   if ('error' in r) {
     setRunning(false);
@@ -305,15 +306,15 @@ function finish(summary: DoneEvent): void {
   el('summary').hidden = false;
 }
 
-function setFolder(path: string): void {
-  folder = path;
+function showFolder(): void {
+  const path = folders[currentMode()];
   el('folder').textContent = path;
   el('folder').title = path;
 }
 
 async function init(): Promise<void> {
   const s = await window.api.getSettings();
-  setFolder(s.folder);
+  folders = s.folders;
   el<HTMLSelectElement>('bitrate').value = s.bitrate;
   el<HTMLInputElement>('enrich').checked = s.enrich;
   el<HTMLSelectElement>('mode').value = s.mode;
@@ -323,7 +324,8 @@ async function init(): Promise<void> {
   fillSubtitles([], 'Load a link to see its subtitles.');
   el<HTMLSelectElement>('maxHeight').value = s.maxHeight;
   applyMode();
-  el('mode').addEventListener('change', applyMode);
+  showFolder();
+  el('mode').addEventListener('change', () => { applyMode(); showFolder(); });
   // Close the subtitle dropdown on an outside click or Escape
   document.addEventListener('click', (e) => {
     const box = el<HTMLDetailsElement>('subsBox');
@@ -343,8 +345,8 @@ async function init(): Promise<void> {
     updateCount();
   });
   el('folderBtn').addEventListener('click', async () => {
-    const picked = await window.api.pickFolder(folder);
-    if (picked) setFolder(picked);
+    const picked = await window.api.pickFolder(folders[currentMode()]);
+    if (picked) { folders[currentMode()] = picked; showFolder(); }
   });
   el('downloadBtn').addEventListener('click', startDownload);
   el('cancelBtn').addEventListener('click', () => {

@@ -77,11 +77,10 @@ function loadSettings(): Partial<Settings> {
 // ---- IPC ---------------------------------------------------------------------
 
 ipcMain.handle('settings:get', (): Settings => {
-  const saved: Partial<Settings> & { captions?: boolean } = loadSettings();
+  const saved: Partial<Settings> & { captions?: boolean; folder?: string } = loadSettings();
   // Older versions stored a single "English captions" checkbox
   const subLangs = saved.subLangs ?? (saved.captions ? ['en'] : []);
   return {
-    folder: app.getPath('music'),
     bitrate: '192',
     enrich: false,
     mode: 'mp3',
@@ -89,6 +88,12 @@ ipcMain.handle('settings:get', (): Settings => {
     maxHeight: '',
     ...saved,
     subLangs,
+    folders: {
+      mp3: saved.folder ?? app.getPath('music'),  // older versions stored one folder, used for mp3
+      video: app.getPath('videos'),
+      captions: app.getPath('documents'),
+      ...saved.folders,
+    },
   };
 });
 

@@ -56,7 +56,8 @@ interface DoneEvent {
 type DownloadMode = 'mp3' | 'video' | 'captions';
 
 interface Settings {
-  folder: string;
+  /** Output folder for each download mode. */
+  folders: Record<DownloadMode, string>;
   bitrate: string;
   enrich: boolean;
   mode: DownloadMode;

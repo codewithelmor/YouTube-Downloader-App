@@ -194,6 +194,7 @@ function createWindow(): void {
     height: 720,
     minWidth: 720,
     minHeight: 560,
+    maximizable: false,
     backgroundColor: '#121212',
     icon: path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {

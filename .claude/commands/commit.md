@@ -1,19 +1,19 @@
 ---
-description: Compose a Conventional Commits message and prepare the git commit command (does not run it)
+description: Compose a Conventional Commits message, then ask the user whether to continue and run the commit
 argument-hint: [optional hint: scope, ticket number, or extra context]
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*)
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), AskUserQuestion
 ---
 
 # Prepare a Commit Message
 
-Your job is to **compose the commit message and prepare the git command only**.
-The user will review it and press Enter to commit by themselves.
+Your job is to **compose the commit message, show it, and then ask the user whether to continue** before anything is committed.
 
 ## Hard rules
 
-- **NEVER run** `git commit`, `git add`, `git push`, `git reset`, `git stash`, `git checkout`, or any other command that changes the repository.
-- Only use read-only git commands to understand the changes.
-- Do not claim the changes were committed. You only prepare the command.
+- **NEVER run** `git commit` or `git add` until the user has explicitly confirmed in the confirmation step below. Without a clear "yes", do not run them.
+- **NEVER run** `git push`, `git reset`, `git stash`, `git checkout`, or any other command that changes the repository, even after confirmation. Confirmation covers only the shown `git add` and `git commit` commands.
+- Before confirmation, only use read-only git commands to understand the changes.
+- Do not claim the changes were committed unless the commit command actually ran and succeeded.
 - Do not add "Co-authored-by", "Generated with", or any AI attribution line unless the user asks for it.
 
 ## Context
@@ -37,6 +37,23 @@ User hint (optional): $ARGUMENTS
 3. **Check if the changes should be split.** If the diff mixes unrelated changes (for example a feature and an unrelated refactor), recommend separate commits. Prepare one `git add` and `git commit` pair for each commit.
 4. **Compose the message** using the format and rules below.
 5. **Show the result** using the output format below.
+6. **Ask the user whether to continue** (see "Confirmation step"). This step is mandatory every time the command is called, even when the message looks perfect.
+
+## Confirmation step
+
+After showing the result, call the `AskUserQuestion` tool with one question, for example "Do you want to continue and commit with this message?", and these options:
+
+- **Commit now**: run the shown `git add` (only if one was prepared) and `git commit` commands exactly as shown.
+- **Edit the message**: the user gives changes; update the message, show it again, and ask again.
+- **Cancel**: stop and run nothing.
+
+Handling the answer:
+
+- **Commit now**: run the commands as shown, in order, one after the other. If a command fails (for example a hook rejects the commit), show the error and do not retry with flags like `--no-verify`. If it succeeds, confirm with the short hash from `git log --oneline -1`.
+- **Edit the message** (or free text from "Other"): apply the change, show the new command, and ask the confirmation question again.
+- **Cancel**, or no clear answer: do not run anything. Say that nothing was committed.
+- If you recommended splitting into several commits, ask once per commit, in order, and run each only after its own confirmation.
+- If there was nothing to commit (no changes), skip this step.
 
 ## Message format (Conventional Commits 1.0.0)
 
@@ -119,4 +136,4 @@ Summary: 2 staged files, 1 logical change (new endpoint).
 git commit -m "feat(auth): add refresh token endpoint" -m "Access tokens now expire after 15 minutes. Clients can request a new access token with the refresh token instead of logging in again." -m "Closes #142"
 ```
 
-End with this line: "Review the message, then run the command yourself to commit."
+End the text with this line: "Review the message, then choose below whether to continue." Then ask the confirmation question.

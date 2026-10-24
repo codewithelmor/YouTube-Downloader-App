@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "fps": 30,
+  "size": "1920x1080",
+  "scenes": [
+    { "id": "title", "journey": null, "title": "Title card",
+      "voiceover": "YouTube Downloader. Links in, music files out.",
+      "onscreen": "Links in. Music files out.", "targetSeconds": 3 },
+    { "id": "s01", "journey": null, "title": "The problem",
+      "voiceover": "Found a live performance you want to keep as a music file?",
+      "onscreen": "Keep it as an MP3", "targetSeconds": 5 },
+    { "id": "s02", "journey": "J1", "title": "Paste the link and load it",
+      "voiceover": "Paste the YouTube link and click Load. The app reads the title, artist, and length.",
+      "onscreen": "", "targetSeconds": 8,
+      "input": { "url": "https://www.youtube.com/watch?v=Vz2ezV_cvtg" },
+      "expect": ["Tumatakbo (Live Performance)", "Mojofly", "4:59"] },
+    { "id": "s03", "journey": "J1", "title": "Choose MP3 at 128 kbps",
+      "voiceover": "Pick Audio MP3 and a quality. One twenty-eight kilobits per second keeps files small.",
+      "onscreen": "MP3 · 128 kbps", "targetSeconds": 7,
+      "input": { "mode": "mp3", "bitrate": "128" } },
+    { "id": "s04", "journey": "J1", "title": "Download",
+      "voiceover": "Click Download. The app downloads, converts, and tags the file in seconds.",
+      "onscreen": "", "targetSeconds": 8,
+      "expect": ["Finished", "1 of 1 file(s) saved."] },
+    { "id": "s05", "journey": "J1", "title": "The tagged MP3",
+      "voiceover": "Here it is. Named, tagged with title and artist, and with the cover art.",
+      "onscreen": "Tagged and ready", "targetSeconds": 8,
+      "expect": ["Mojofly - Tumatakbo (Live Performance).mp3"] },
+    { "id": "end", "journey": null, "title": "End card",
+      "voiceover": "No sign-in needed. Get it from the link below.",
+      "onscreen": "Try it: <download link>", "targetSeconds": 4 }
+  ]
+}

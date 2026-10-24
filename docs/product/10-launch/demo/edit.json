@@ -1,0 +1,22 @@
+{
+  "name": "youtube-downloader-v1.0.0-overview",
+  "size": "1920x1080",
+  "fps": 30,
+  "segments": [
+    { "video": "recordings/card-title/raw.mp4", "markers": "recordings/card-title/markers.json" },
+    { "video": "recordings/j1-app/raw.webm", "markers": "recordings/j1-app/markers.json", "trimStart": 1.6 },
+    { "video": "recordings/j1-explorer/raw.mp4", "markers": "recordings/j1-explorer/markers.json" },
+    { "video": "recordings/card-end/raw.mp4", "markers": "recordings/card-end/markers.json" }
+  ],
+  "audioDir": "audio",
+  "voiceLead": 0.3,
+  "chapters": [
+    { "title": "Introduction", "scene": "title" },
+    { "title": "Paste a link", "scene": "s02" },
+    { "title": "Choose MP3 at 128 kbps", "scene": "s03" },
+    { "title": "Download", "scene": "s04" },
+    { "title": "The tagged MP3", "scene": "s05" },
+    { "title": "Try it", "scene": "end" }
+  ],
+  "exportsDir": "exports"
+}

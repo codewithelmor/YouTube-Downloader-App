@@ -1,0 +1,56 @@
+1
+00:00:00,300 --> 00:00:01,656
+YouTube Downloader.
+
+2
+00:00:01,706 --> 00:00:03,630
+Links in, music files out.
+
+3
+00:00:04,946 --> 00:00:08,546
+Found a live performance you want to keep
+as a music file?
+
+4
+00:00:09,371 --> 00:00:11,763
+Paste the YouTube link and click Load.
+
+5
+00:00:11,813 --> 00:00:14,641
+The app reads the title, artist, and
+length.
+
+6
+00:00:16,617 --> 00:00:18,873
+Pick Audio MP3 and a quality.
+
+7
+00:00:18,923 --> 00:00:23,297
+128 kbps keeps files small.
+
+8
+00:00:23,905 --> 00:00:24,895
+Click Download.
+
+9
+00:00:24,945 --> 00:00:28,965
+The app downloads, converts, and tags the
+file in seconds.
+
+10
+00:00:34,833 --> 00:00:35,783
+Here it is.
+
+11
+00:00:35,833 --> 00:00:39,796
+Named, tagged with title and artist, and
+with the cover art.
+
+12
+00:00:43,133 --> 00:00:44,343
+No sign-in needed.
+
+13
+00:00:44,393 --> 00:00:46,283
+Get it from the link below.
+

@@ -149,6 +149,30 @@ YouTube-Downloader-App/
 │   ├── cli.py
 │   ├── core.py
 │   └── requirements.txt
+├── docs
+│   └── product
+│       └── 10-launch
+│           ├── demo
+│           │   ├── automation
+│           │   │   ├── cards.py
+│           │   │   ├── cursor.ps1
+│           │   │   ├── explorer.ps1
+│           │   │   ├── package-lock.json
+│           │   │   ├── package.json
+│           │   │   ├── record.js
+│           │   │   └── tts_kokoro.py
+│           │   ├── captions
+│           │   │   ├── youtube-downloader-v1.0.0-overview.srt
+│           │   │   └── youtube-downloader-v1.0.0-overview.vtt
+│           │   ├── thumbnail
+│           │   │   ├── end.png
+│           │   │   └── title.png
+│           │   ├── demo-plan.md
+│           │   ├── edit.json
+│           │   ├── qc-report.md
+│           │   ├── scenes.json
+│           │   └── script.md
+│           └── published-links.md
 ├── scripts
 │   ├── build-all.ps1
 │   ├── build-all.sh
